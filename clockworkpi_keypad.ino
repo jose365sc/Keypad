@@ -78,6 +78,12 @@ const int shift_keys[KEY_NUM] =
 
 int old_keys[KEY_NUM];
 
+uint8_t key_level[KEY_NUM];
+
+const int key_level_max = 8;
+const int key_level_high = 6;
+const int key_level_low = 2;
+
 bool shift_key_pressed()
 {
   for(int i = 0; i < SHIFT_KEY_NUM; i++)
@@ -99,8 +105,17 @@ void setup()
       pinMode(pins[i], INPUT);
     }
     old_keys[i] = KEY_NULL;
+    key_level[i] = 0;
   }
+
   Serial.begin(115200);
+}
+
+inline const uint8_t saturate(uint8_t v, uint8_t min, uint8_t max)
+{
+  if (v < min) return min;
+  if (v > max) return max;
+  return v;
 }
 
 void loop()
@@ -108,7 +123,6 @@ void loop()
   int on_off, key;
 
   UsbKeyboard.update();
-  delay(1000);
 
   for(int i = 0; i < KEY_NUM; i++)
   {
@@ -120,12 +134,16 @@ void loop()
     {
       on_off = analogRead(pins[i])/ADC_BOUNDARY;
     }
+    key_level[i] = saturate(key_level[i] + (on_off == KEY_ON ? 1 : -1), 0, key_level_max);
+    on_off = key_level[i] >= key_level_high ? KEY_ON : (key_level[i] <= key_level_low ? KEY_OFF : (old_keys[i] == KEY_NULL ? KEY_OFF : KEY_ON));
 
     if(on_off == KEY_OFF)
     {
       if(old_keys[i] != KEY_NULL)
       {
         UsbKeyboard.release(old_keys[i]);
+          Serial.print("released=");
+          Serial.println(old_keys[i]);
         old_keys[i] = KEY_NULL;
       }
     }
@@ -145,10 +163,15 @@ void loop()
         if(old_keys[i] != KEY_NULL)
         {
           UsbKeyboard.release(old_keys[i]);
+          Serial.print("released=");
+          Serial.println(old_keys[i]);
         }
         UsbKeyboard.press(key);
+        Serial.print("pressed=");
+        Serial.println(key);
         old_keys[i] = key;
       }
     }
   }
+  delay(1);
 }
